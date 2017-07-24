@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import os
 import time
 import copy
@@ -37,16 +37,17 @@ def readconfig(path):
         except:
              pass
     except:
-        print "unable to read config, running with defaults"
+        print("unable to read config, running with defaults")
     return config
 
 def get_sector_size(dev):
     try:
-        f=file("/sys/block/"+dev+"/queue/logical_block_size", 'r')
-        ss=int(f.readline())
+        file = open("/sys/block/"+dev+"/queue/logical_block_size")
+        lines = [line.strip() for line in file]
+        ss=int(lines[0])
     except ExceptionObject:
         #dirty hack for old kernels (like centos)
-        print "Unable to get sector size for %s, assuming 512 bytes." % (dev,)
+        print("Unable to get sector size for {}, assuming 512 bytes.".format((dev)))
         ss=512   
     return ss
 
@@ -126,7 +127,7 @@ def devlist(config):
     for dev in  os.listdir('/sys/block'):
         if is_ignored(dev,config['ignore']):
             continue
-	if is_any_io(get_stat(dev)):#skip empty devices never has an IO
+    if is_any_io(get_stat(dev)):#skip empty devices never has an IO
             devs[dev]={}
             devs[dev]['sector_size']=get_sector_size(dev) #(just for test) FIXME
             devs[dev]['id']='FIXME' #FIXME
@@ -173,7 +174,7 @@ def calc_delta(old, new, devlist):
        return dict of deltas for two dict of dicts
     '''
     retval={}
-    for key in old.iterkeys():
+    for key in iter(old):
         retval[key]=calc_single_delta(new[key],old[key],devlist[key]["sector_size"])
     return retval
 
@@ -198,7 +199,7 @@ def tick(devlist, delay,window_size=60):
         time.sleep(delay)
         new=scan_all(devlist)
         yield (calc_delta (old,new,devlist))
-	old=new
+    old=new
 
 def get_top (delta):
     '''
@@ -212,21 +213,21 @@ def make_k (n,scale=1000, force_high=False):
         return human-like view
     '''
     if n < 10*scale and not force_high:
-        return str(n)
+        return "{:.0f}".format(n)
     if  n < 100*scale*scale:
-        return str(n/scale)+'k'
-    return str(n/scale/scale)+'M'
+        return "{:.0f}k".format(n/scale)
+    return "{:.0f}M".format(n/scale/scale)
 
 def fix (l,scale=1000, force_high=False):
     '''
        create pagination and convert numeric values to ISO-based format (f.e. 1k 8M and so on)
     '''
     if type(l) == type(""):
-	value=l[0:8]
+        value=l[0:8]
     elif type(l) == type(0.0):
         value = make_k ( round(l,2),scale,force_high) 
     else:
-	value = make_k(l)
+        value = make_k(l)
     return  value.rjust(8, ' ')
 
 
@@ -282,8 +283,8 @@ def prepare_line(name,item,dev):
     '''
        return string for printing for 'item'
     '''
-    color_esc="\x1b[%im" #see man console_codes
-    color_esc2="\x1b[%i;%im"
+    color_esc="\x1b[{}m" #see man console_codes
+    color_esc2="\x1b[{};{}m"
     default_color=39 #default foreground color
     color = get_color(item['io_ticks'])
     bold = get_bold(name)
@@ -306,17 +307,17 @@ def prepare_line(name,item,dev):
         f.append(fix(item['write_sectors'],1024,force_high=True))
         f.append(fix(item['avg write block size'],1024))
     out=' '.join(f)
-    return (color_esc2%(bold,color)) + out + (color_esc%default_color)
+    return (color_esc2.format(bold,color)) + out + (color_esc.format(default_color))
 
 
 def view(cur,devlist):
     '''
         Visualisation part: print (un)fancy list
     '''
-    print prepare_header(devlist)
+    print(prepare_header(devlist))
 	
-    for a in cur.iterkeys():
-        print prepare_line(a,cur[a],devlist[a])
+    for a in iter(cur):
+        print(prepare_line(a,cur[a],devlist[a]))
     return None
 
 def main():
@@ -327,10 +328,11 @@ def main():
     '''
     config=readconfig("/etc/blktop.conf")
     devs=devlist(config)
+    print(devs)
     global max_name_size
-    max_name_size = min(32,max(8,max([len(devs[i]['alias']) for i in devs.iterkeys()]),8)) #goes static, name field is in [8,32] range
+    max_name_size = min(32,max(8,max([len(devs[i]['alias']) for i in iter(devs)]),8)) #goes static, name field is in [8,32] range
     for (cur) in tick(devs,1):
-	view (cur,devs)
+        view (cur,devs)
 
 if __name__ == '__main__':
     main ()
