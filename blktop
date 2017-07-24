@@ -1,12 +1,18 @@
 #!/usr/bin/python3
 import os
 import time
-from collections import defaultdict
-
+import collections
+import signal
+import sys
 
 # static variables goes here
 # maximal found alias lenght for device name, defaulting to 8, can change later
 max_name_size = 8
+
+
+def signal_handler(signal, frame):
+        print('You pressed Ctrl+C, quitting')
+        sys.exit(0)
 
 
 class SlideList(list):
@@ -26,7 +32,7 @@ class SlideList(list):
 
 
 def readconfig(path):
-    config = defaultdict(str)
+    config = collections.defaultdict(str)
     try:
         import ConfigParser
         cfg = ConfigParser.ConfigParser()
@@ -123,19 +129,19 @@ def devlist(config):
     return dictionary of found devices or empty dict
     we add only keys 'sector size', 'id' and flag if device is md (no queue/latency)
     """
-    devs = {}
-    for dev in os.listdir('/sys/block'):
+    devs = collections.OrderedDict({})
+    for dev in sorted(os.listdir('/sys/block')):
         if is_ignored(dev, config['ignore']):
             continue
-    if is_any_io(get_stat(dev)):  # Skip empty devices never has an IO.
-            devs[dev] = {}
-            devs[dev]['sector_size'] = get_sector_size(dev)  # (just for test) FIXME
-            devs[dev]['id'] = 'FIXME'  # FIXME
-            if 'md' in dev:
-                devs[dev]['is_md'] = True
-            else:
-                devs[dev]['is_md'] = False
-            devs[dev]['alias'] = get_alias(dev)
+        if is_any_io(get_stat(dev)):  # Skip empty devices never has an IO.
+                devs[dev] = {}
+                devs[dev]['sector_size'] = get_sector_size(dev)  # (just for test) FIXME
+                devs[dev]['id'] = 'FIXME'  # FIXME
+                if 'md' in dev:
+                    devs[dev]['is_md'] = True
+                else:
+                    devs[dev]['is_md'] = False
+                devs[dev]['alias'] = get_alias(dev)
     return devs
 
 
@@ -175,7 +181,7 @@ def calc_single_delta(new, old, sector_size):
 
 def calc_delta(old, new, devlist):
     """Return dict of deltas for two dict of dicts."""
-    retval = {}
+    retval = collections.OrderedDict({})
     for key in iter(old):
         retval[key] = calc_single_delta(new[key], old[key], devlist[key]["sector_size"])
     return retval
@@ -189,8 +195,8 @@ def scan_all(devlist):
           key=devname
           values=dict of stat
     """
-    retval = {}
-    for dev in devlist.keys():
+    retval = collections.OrderedDict({})
+    for dev in sorted(devlist.keys()):
         retval[dev] = get_stat(dev)
     return retval
 
@@ -202,7 +208,7 @@ def tick(devlist, delay, window_size=60):
         time.sleep(delay)
         new = scan_all(devlist)
         yield (calc_delta(old, new, devlist))
-    old = new
+        old = new
 
 
 def get_top(delta):
@@ -315,8 +321,8 @@ def view(cur, devlist):
     """Visualisation part: print (un)fancy list."""
     print(prepare_header(devlist))
 
-    for a in iter(cur):
-        print(prepare_line(a, cur[a], devlist[a]))
+    for device, current in cur.items():
+        print(prepare_line(device, current, devlist[device]))
     return None
 
 
@@ -326,13 +332,19 @@ def main():
     don't use config file (initial proof of usability)
     We making 1s tick so we can use delta as ds/dt
     """
+    signal.signal(signal.SIGINT, signal_handler)
     config = readconfig("/etc/blktop.conf")
     devs = devlist(config)
-    print(devs)
+
     global max_name_size
     max_name_size = min(32, max(8, max([len(devs[i]['alias']) for i in iter(devs)]), 8))  # goes static, name field is in [8,32] range
     for (cur) in tick(devs, 1):
-        view(cur, devs)
+        try:
+            view(cur, devs)
+        except KeyboardInterrupt:
+            print("Quitting")
+            quit()
+
 
 if __name__ == '__main__':
     main()
