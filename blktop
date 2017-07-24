@@ -295,24 +295,19 @@ def prepare_line(name, item, dev):
     default_color = 39  # default foreground color
     color = get_color(item['io_ticks'])
     bold = get_bold(name)
-    f = [(dev['alias'].rjust(max_name_size, ' '))]
+    # f = [(dev['alias'].rjust(max_name_size, ' '))]
+    f = ["{!s:>{}.{}}".format(dev['alias'], max_name_size, max_name_size)]
+
+    f.append(fix(item['read_ios']))
+    f.append(fix(item['read_sectors'], 1024, force_high=True))
+    f.append(fix(item['avg read block size'], 1024))
+    f.append(fix(item['write_ios']))
+    f.append(fix(item['write_sectors'], 1024, force_high=True))
+    f.append(fix(item['avg write block size'], 1024))
     if not dev['is_md']:
-        f.append(fix(item['read_ios']))
-        f.append(fix(item['read_sectors'], 1024, force_high=True))
-        f.append(fix(item['avg read block size'], 1024))
-        f.append(fix(item['write_ios']))
-        f.append(fix(item['write_sectors'], 1024, force_high=True))
-        f.append(fix(item['avg write block size'], 1024))
         f.append(fix(item['latency']))
         f.append(fix(item['in_flight']))
         f.append(fix(item['io_ticks']))
-    else:
-        f.append(fix(item['read_ios']))
-        f.append(fix(item['read_sectors'], 1024, force_high=True))
-        f.append(fix(item['avg read block size'], 1024))
-        f.append(fix(item['write_ios']))
-        f.append(fix(item['write_sectors'], 1024, force_high=True))
-        f.append(fix(item['avg write block size'], 1024))
     out = ' '.join(f)
     return (color_esc2.format(bold, color)) + out + (color_esc.format(default_color))
 
